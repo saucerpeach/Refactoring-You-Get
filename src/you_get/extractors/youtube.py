@@ -267,22 +267,7 @@ class YouTube(VideoExtractor):
 
         return stream_list
 
-
-    def prepare(self, **kwargs):
-        assert self.url or self.vid
-
-        if not self.vid and self.url:
-            self.vid = self.__class__.get_vid_from_url(self.url)
-
-            if self.vid is None:
-                self.download_playlist_by_url(self.url, **kwargs)
-                exit(0)
-
-        video_info = parse.parse_qs(get_content('https://www.youtube.com/get_video_info?video_id={}'.format(self.vid)))
-
-        ytplayer_config = None
-        stream_list = self.short1(video_info)
-
+    def short2(self, ytplayer_config, kwargs, stream_list):
         # YouTube Live
         if ytplayer_config and (ytplayer_config['args'].get('livestream') == '1' or ytplayer_config['args'].get('live_playback') == '1'):
             if 'hlsvp' in ytplayer_config['args']:
@@ -342,6 +327,7 @@ class YouTube(VideoExtractor):
                 self.caption_tracks[lang] = srt
         except: pass
 
+    def short3(self, ytplayer_config):
         # Prepare DASH streams
         try:
             dashmpd = ytplayer_config['args']['dashmpd']
@@ -354,16 +340,20 @@ class YouTube(VideoExtractor):
                     dash_mp4_a_url = burls[0].firstChild.nodeValue
                     dash_mp4_a_size = burls[0].getAttribute('yt:contentLength')
                     if not dash_mp4_a_size:
-                        try: dash_mp4_a_size = url_size(dash_mp4_a_url)
-                        except: continue
+                        try:
+                            dash_mp4_a_size = url_size(dash_mp4_a_url)
+                        except:
+                            continue
                 elif mimeType == 'audio/webm':
                     rep = aset.getElementsByTagName('Representation')[-1]
                     burls = rep.getElementsByTagName('BaseURL')
                     dash_webm_a_url = burls[0].firstChild.nodeValue
                     dash_webm_a_size = burls[0].getAttribute('yt:contentLength')
                     if not dash_webm_a_size:
-                        try: dash_webm_a_size = url_size(dash_webm_a_url)
-                        except: continue
+                        try:
+                            dash_webm_a_size = url_size(dash_webm_a_url)
+                        except:
+                            continue
                 elif mimeType == 'video/mp4':
                     for rep in aset.getElementsByTagName('Representation'):
                         w = int(rep.getAttribute('width'))
@@ -373,8 +363,10 @@ class YouTube(VideoExtractor):
                         dash_url = burls[0].firstChild.nodeValue
                         dash_size = burls[0].getAttribute('yt:contentLength')
                         if not dash_size:
-                            try: dash_size = url_size(dash_url)
-                            except: continue
+                            try:
+                                dash_size = url_size(dash_url)
+                            except:
+                                continue
                         dash_urls = self.__class__.chunk_by_range(dash_url, int(dash_size))
                         dash_mp4_a_urls = self.__class__.chunk_by_range(dash_mp4_a_url, int(dash_mp4_a_size))
                         self.dash_streams[itag] = {
@@ -395,8 +387,10 @@ class YouTube(VideoExtractor):
                         dash_url = burls[0].firstChild.nodeValue
                         dash_size = burls[0].getAttribute('yt:contentLength')
                         if not dash_size:
-                            try: dash_size = url_size(dash_url)
-                            except: continue
+                            try:
+                                dash_size = url_size(dash_url)
+                            except:
+                                continue
                         dash_urls = self.__class__.chunk_by_range(dash_url, int(dash_size))
                         dash_webm_a_urls = self.__class__.chunk_by_range(dash_webm_a_url, int(dash_webm_a_size))
                         self.dash_streams[itag] = {
@@ -408,6 +402,25 @@ class YouTube(VideoExtractor):
                             'src': [dash_urls, dash_webm_a_urls],
                             'size': int(dash_size) + int(dash_webm_a_size)
                         }
+
+
+    def prepare(self, **kwargs):
+        assert self.url or self.vid
+
+        if not self.vid and self.url:
+            self.vid = self.__class__.get_vid_from_url(self.url)
+
+            if self.vid is None:
+                self.download_playlist_by_url(self.url, **kwargs)
+                exit(0)
+
+        video_info = parse.parse_qs(get_content('https://www.youtube.com/get_video_info?video_id={}'.format(self.vid)))
+
+        ytplayer_config = None
+        stream_list = self.short1(video_info)
+        self.short2(ytplayer_config, kwargs, stream_list)
+        self.short3(ytplayer_config)
+
         except:
             # VEVO
             if not self.html5player: return
